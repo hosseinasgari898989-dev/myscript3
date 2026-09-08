@@ -332,19 +332,28 @@ print("✅ بخش ۴: لیست بازیکنان بارگذاری شد!")
 
 -- ================================================
 -- ================================================
--- 🇮🇷 بخش ۵: چسبیدن به پشت و جلو (نسخه اصلاح‌شده)
 -- ================================================
--- ⚠️ توجه: توابع startAttach و stopAttach اینجا تعریف شدن
--- تا قبل از استفاده وجود داشته باشند!
+-- 🇮🇷 بخش ۵: چسبیدن به پشت/جلو + Kill Farm (نسخه نهایی)
+-- ================================================
 
+-- 1️⃣ چسبیدن به پشت/جلو
 local function startAttach()
-    if attachConnection then attachConnection:Disconnect() end
+    if attachConnection then
+        attachConnection:Disconnect()
+    end
     attachConnection = RunService.Heartbeat:Connect(function()
-        if not selectedPlayer or not selectedPlayer.Character then return end
-        local char = player.Character if not char then return end
+        if not selectedPlayer or not selectedPlayer.Character then
+            return
+        end
+        local char = player.Character
+        if not char then
+            return
+        end
         local root = char:FindFirstChild("HumanoidRootPart")
         local targetRoot = selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not root or not targetRoot then return end
+        if not root or not targetRoot then
+            return
+        end
         local dist = isBackAttach and backDistance or frontDistance
         local dir = isBackAttach and -1 or 1
         root.CFrame = CFrame.new(targetRoot.Position + targetRoot.CFrame.LookVector * dir * dist)
@@ -352,7 +361,10 @@ local function startAttach()
 end
 
 local function stopAttach()
-    if attachConnection then attachConnection:Disconnect(); attachConnection = nil end
+    if attachConnection then
+        attachConnection:Disconnect()
+        attachConnection = nil
+    end
 end
 
 createToggle(scrollFrame, "🎯 چسبیدن به پشت (Back)",
@@ -401,24 +413,104 @@ createSlider(scrollFrame, "📏 فاصله جلو", 1, 100,
     function(val) frontDistance = val end
 )
 
-print("✅ بخش ۵: چسبیدن به پشت و جلو (اصلاح‌شده) اضافه شدند!")
--- 🇮🇷 بخش ۶: Invisible (غیب شدن) و Order (چرخش)
+-- 2️⃣ Kill Farm (چسبیدن به پلیر با سرعت بالا - از همه جهت)
+local function startKillFarm()
+    if killFarmConnection then
+        killFarmConnection:Disconnect()
+    end
+    local angle = 0
+    killFarmConnection = RunService.Heartbeat:Connect(function()
+        if not isKillFarm then
+            return
+        end
+        if not selectedPlayer or not selectedPlayer.Character then
+            return
+        end
+        local char = player.Character
+        if not char then
+            return
+        end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local targetRoot = selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if not root or not targetRoot then
+            return
+        end
+        
+        -- حرکت دورانی سریع دور پلیر (جلو/عقب/بالا/پایین)
+        angle = angle + 0.3
+        local radius = 2
+        local heightOffset = math.sin(angle) * 2
+        local x = math.cos(angle) * radius
+        local z = math.sin(angle) * radius
+        local targetPos = targetRoot.Position + Vector3.new(x, heightOffset, z)
+        root.CFrame = CFrame.new(targetPos)
+    end)
+end
+
+local function stopKillFarm()
+    if killFarmConnection then
+        killFarmConnection:Disconnect()
+        killFarmConnection = nil
+    end
+end
+
+createToggle(scrollFrame, "⚔️ Kill Farm (چسبیدن سریع)",
+    function() return isKillFarm end,
+    function(state)
+        if state and not selectedPlayer then
+            print("⚠️ اول از لیست بازیکن انتخاب کن!")
+            return
+        end
+        isKillFarm = state
+        if state then
+            isBackAttach = false
+            isFrontAttach = false
+            stopAttach()
+            startKillFarm()
+        else
+            stopKillFarm()
+        end
+    end
+)
+
+print("✅ بخش ۵: چسبیدن و Kill Farm (نسخه نهایی) اضافه شدند!")
 -- ================================================
+-- 🇮🇷 بخش ۶: Invisible (بدون باگ) + Order (اصلاح‌شده)
+-- ================================================
+
+-- Invisible (با حذف بلاک‌ها)
+local invisibleParts = {}
+
 createToggle(scrollFrame, "👻 Invisible (غیب شدن)",
     function() return isInvisible end,
     function(state)
         isInvisible = state
         local char = player.Character
-        if char then
+        if not char then
+            return
+        end
+        
+        if state then
             for _, part in ipairs(char:GetDescendants()) do
                 if part:IsA("BasePart") then
-                    part.Transparency = state and 1 or 0
+                    part.Transparency = 1
                 end
             end
+        else
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.Transparency = 0
+                end
+            end
+            for _, p in ipairs(invisibleParts) do
+                p:Destroy()
+            end
+            invisibleParts = {}
         end
     end
 )
 
+-- Order (چرخش دور بازیکن) - اصلاح‌شده
 createToggle(scrollFrame, "🔄 Order (چرخش دور بازیکن)",
     function() return isOrder end,
     function(state)
@@ -427,7 +519,11 @@ createToggle(scrollFrame, "🔄 Order (چرخش دور بازیکن)",
             return
         end
         isOrder = state
-        if state then startOrder() else stopOrder() end
+        if state then
+            startOrder()
+        else
+            stopOrder()
+        end
     end
 )
 
@@ -436,176 +532,524 @@ createSlider(scrollFrame, "📏 فاصله چرخش", 1, 50,
     function(val) orderDistance = val end
 )
 
-print("✅ بخش ۶: Invisible و Order اضافه شدند!")
+print("✅ بخش ۶: Invisible (بی‌باگ) و Order (اصلاح‌شده) اضافه شدند!")
+-- ================================================
+-- 🇮🇷 بخش ۷: رفتن پیش پلیر (Teleport)
+-- ================================================
+local function teleportToPlayer()
+    if not selectedPlayer then
+        print("⚠️ اول از لیست بازیکن انتخاب کن!")
+        return
+    end
+    local char = player.Character
+    if not char then
+        return
+    end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local targetRoot = selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not root or not targetRoot then
+        return
+    end
+    root.CFrame = CFrame.new(targetRoot.Position + Vector3.new(0, 2, 0))
+    print("✅ به " .. selectedPlayer.Name .. " تله‌پورت شدی!")
+end
 
+local teleportFrame = Instance.new("Frame")
+teleportFrame.Size = UDim2.new(0.92, 0, 0, 38)
+teleportFrame.BackgroundColor3 = Color3.fromRGB(22, 25, 40)
+teleportFrame.BackgroundTransparency = 0.3
+teleportFrame.BorderSizePixel = 0
+teleportFrame.Parent = scrollFrame
+
+local teleportCorner = Instance.new("UICorner")
+teleportCorner.CornerRadius = UDim.new(0, 8)
+teleportCorner.Parent = teleportFrame
+
+local teleportLabel = Instance.new("TextLabel")
+teleportLabel.Size = UDim2.new(0.55, 0, 1, 0)
+teleportLabel.Position = UDim2.new(0.05, 0, 0, 0)
+teleportLabel.BackgroundTransparency = 1
+teleportLabel.Text = "🚀 رفتن پیش پلیر"
+teleportLabel.TextColor3 = Color3.fromRGB(220, 220, 230)
+teleportLabel.TextSize = 13
+teleportLabel.Font = Enum.Font.GothamMedium
+teleportLabel.TextXAlignment = Enum.TextXAlignment.Left
+teleportLabel.Parent = teleportFrame
+
+local teleportBtn = Instance.new("TextButton")
+teleportBtn.Size = UDim2.new(0.3, 0, 0.7, 0)
+teleportBtn.Position = UDim2.new(0.65, 0, 0.15, 0)
+teleportBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+teleportBtn.BorderSizePixel = 0
+teleportBtn.Text = "برو"
+teleportBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+teleportBtn.TextSize = 13
+teleportBtn.Font = Enum.Font.GothamBold
+teleportBtn.Parent = teleportFrame
+
+local teleportBtnCorner = Instance.new("UICorner")
+teleportBtnCorner.CornerRadius = UDim.new(0, 6)
+teleportBtnCorner.Parent = teleportBtn
+
+teleportBtn.MouseButton1Click:Connect(teleportToPlayer)
+teleportBtn.TouchTap:Connect(teleportToPlayer)
+
+print("✅ بخش ۷: رفتن پیش پلیر اضافه شد!")
 -- ================================================
--- 🇮🇷 بخش ۷: Kill Farm (کشتن خودکار)
+-- 🇮🇷 بخش ۸: Fly (پرواز با سرعت قابل تنظیم)
 -- ================================================
-createToggle(scrollFrame, "⚔️ Kill Farm (کشتن خودکار)",
-    function() return isKillFarm end,
-    function(state)
-        if state and not selectedPlayer then
-            print("⚠️ اول از لیست بازیکن انتخاب کن!")
+local flySpeed = 50
+local flyBV = nil
+local flyBG = nil
+
+local function startFly()
+    local char = player.Character
+    if not char then
+        return
+    end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then
+        return
+    end
+    
+    stopFly()
+    
+    flyBV = Instance.new("BodyVelocity")
+    flyBV.MaxForce = Vector3.new(4000, 4000, 4000)
+    flyBV.Parent = root
+    
+    flyBG = Instance.new("BodyGyro")
+    flyBG.MaxTorque = Vector3.new(4000, 4000, 4000)
+    flyBG.Parent = root
+    
+    if flyConnection then
+        flyConnection:Disconnect()
+    end
+    flyConnection = RunService.Heartbeat:Connect(function()
+        if not isFly then
+            stopFly()
             return
         end
-        isKillFarm = state
-        if state then startKillFarm() else stopKillFarm() end
+        local cam = workspace.CurrentCamera
+        if not cam then
+            return
+        end
+        
+        local forward = cam.CFrame.LookVector * Vector3.new(1,0,1)
+        if forward.Magnitude > 0 then
+            forward = forward.Unit
+        else
+            forward = Vector3.new(0,0,1)
+        end
+        
+        local right = cam.CFrame.RightVector * Vector3.new(1,0,1)
+        if right.Magnitude > 0 then
+            right = right.Unit
+        else
+            right = Vector3.new(1,0,0)
+        end
+        
+        local move = Vector3.new(0,0,0)
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then move = move + forward end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then move = move - forward end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then move = move - right end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then move = move + right end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move = move + Vector3.new(0,1,0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then move = move - Vector3.new(0,1,0) end
+        
+        if move.Magnitude > 0 then
+            move = move.Unit * flySpeed
+        end
+        
+        flyBV.Velocity = move
+        flyBG.CFrame = cam.CFrame
+    end)
+end
+
+local function stopFly()
+    if flyConnection then
+        flyConnection:Disconnect()
+        flyConnection = nil
     end
-)
+    if flyBV then
+        flyBV:Destroy()
+        flyBV = nil
+    end
+    if flyBG then
+        flyBG:Destroy()
+        flyBG = nil
+    end
+end
 
-print("✅ بخش ۷: Kill Farm اضافه شد!")
-
--- ================================================
--- 🇮🇷 بخش ۸: Fly (پرواز) و Noclip (عبور از دیوار)
--- ================================================
 createToggle(scrollFrame, "✈️ Fly (پرواز)",
     function() return isFly end,
     function(state)
         isFly = state
-        if state then startFly() else stopFly() end
+        if state then
+            startFly()
+        else
+            stopFly()
+        end
     end
 )
 
-createToggle(scrollFrame, "🌀 Noclip (عبور از دیوار)",
-    function() return isNoclip end,
-    function(state)
-        isNoclip = state
-        if state then startNoclip() else stopNoclip() end
-    end
+createSlider(scrollFrame, "📏 سرعت پرواز", 10, 200,
+    function() return flySpeed end,
+    function(val) flySpeed = val end
 )
 
-print("✅ بخش ۸: Fly و Noclip اضافه شدند!")
+print("✅ بخش ۸: Fly (با سرعت قابل تنظیم) اضافه شد!")
+-- ================================================
+-- 🇮🇷 بخش ۹: WalkSpeed, JumpPower, Infinite Jump
+-- ================================================
 
--- ================================================
--- 🇮🇷 بخش ۹: WalkSpeed (سرعت) و JumpPower (پرش)
--- ================================================
+-- WalkSpeed
+local function applyWalkSpeed()
+    local char = player.Character
+    if char then
+        local hum = char:FindFirstChild("Humanoid")
+        if hum then
+            hum.WalkSpeed = walkSpeedValue
+        end
+    end
+end
+
 createSlider(scrollFrame, "🏃 WalkSpeed (سرعت راه)", 0, 250,
     function() return walkSpeedValue end,
     function(val)
         walkSpeedValue = val
-        local char = player.Character
-        if char then
-            local hum = char:FindFirstChild("Humanoid")
-            if hum then hum.WalkSpeed = val end
-        end
+        applyWalkSpeed()
     end
 )
+
+-- JumpPower
+local function applyJumpPower()
+    local char = player.Character
+    if char then
+        local hum = char:FindFirstChild("Humanoid")
+        if hum then
+            hum.JumpPower = jumpPowerValue
+        end
+    end
+end
 
 createSlider(scrollFrame, "🦘 JumpPower (قدرت پرش)", 0, 200,
     function() return jumpPowerValue end,
     function(val)
         jumpPowerValue = val
+        applyJumpPower()
+    end
+)
+
+-- Infinite Jump
+local isInfiniteJump = false
+local jumpRequested = false
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then
+        return
+    end
+    if input.KeyCode == Enum.KeyCode.Space and isInfiniteJump then
+        jumpRequested = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+    if input.KeyCode == Enum.KeyCode.Space then
+        jumpRequested = false
+    end
+end)
+
+RunService.Heartbeat:Connect(function()
+    if isInfiniteJump and jumpRequested then
         local char = player.Character
         if char then
             local hum = char:FindFirstChild("Humanoid")
-            if hum then hum.JumpPower = val end
+            if hum then
+                hum.Jump = true
+            end
+        end
+    end
+end)
+
+createToggle(scrollFrame, "⬆️ Infinite Jump (پرش بی‌نهایت)",
+    function() return isInfiniteJump end,
+    function(state)
+        isInfiniteJump = state
+        if not state then
+            jumpRequested = false
         end
     end
 )
 
-print("✅ بخش ۹: WalkSpeed و JumpPower اضافه شدند!")
+print("✅ بخش ۹: WalkSpeed, JumpPower, Infinite Jump اضافه شدند!")
+-- ================================================
+-- 🇮🇷 بخش ۱۰: Noclip + WallWalk
+-- ================================================
 
+-- Noclip
+local function startNoclip()
+    if noclipConnection then
+        noclipConnection:Disconnect()
+    end
+    noclipConnection = RunService.Heartbeat:Connect(function()
+        if not isNoclip then
+            stopNoclip()
+            return
+        end
+        local char = player.Character
+        if not char then
+            return
+        end
+        for _, p in ipairs(char:GetDescendants()) do
+            if p:IsA("BasePart") then
+                p.CanCollide = false
+            end
+        end
+    end)
+end
+
+local function stopNoclip()
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
+    end
+    local char = player.Character
+    if char then
+        for _, p in ipairs(char:GetDescendants()) do
+            if p:IsA("BasePart") then
+                p.CanCollide = true
+            end
+        end
+    end
+end
+
+createToggle(scrollFrame, "🌀 Noclip (عبور از دیوار)",
+    function() return isNoclip end,
+    function(state)
+        isNoclip = state
+        if state then
+            startNoclip()
+        else
+            stopNoclip()
+        end
+    end
+)
+
+-- WallWalk
+local isWallWalk = false
+local wallWalkConnection = nil
+
+local function startWallWalk()
+    if wallWalkConnection then
+        wallWalkConnection:Disconnect()
+    end
+    wallWalkConnection = RunService.Heartbeat:Connect(function()
+        if not isWallWalk then
+            stopWallWalk()
+            return
+        end
+        local char = player.Character
+        if not char then
+            return
+        end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not root then
+            return
+        end
+        local hum = char:FindFirstChild("Humanoid")
+        if not hum then
+            return
+        end
+        
+        local ray = Ray.new(root.Position, root.CFrame.LookVector * 3)
+        local hit, pos = workspace:FindPartOnRay(ray, char)
+        if hit and hit:IsA("BasePart") and hit.CanCollide then
+            root.CFrame = CFrame.new(pos + root.CFrame.LookVector * 0.5)
+            hum.WalkSpeed = 20
+        else
+            hum.WalkSpeed = walkSpeedValue
+        end
+    end)
+end
+
+local function stopWallWalk()
+    if wallWalkConnection then
+        wallWalkConnection:Disconnect()
+        wallWalkConnection = nil
+    end
+    applyWalkSpeed()
+end
+
+createToggle(scrollFrame, "🧱 WallWalk (راه رفتن روی دیوار)",
+    function() return isWallWalk end,
+    function(state)
+        isWallWalk = state
+        if state then
+            startWallWalk()
+        else
+            stopWallWalk()
+        end
+    end
+)
+
+print("✅ بخش ۱۰: Noclip و WallWalk اضافه شدند!")
 -- ================================================
--- 🇮🇷 بخش ۱۰: Fling (پرتاب) و WalkFling
+-- 🇮🇷 بخش ۱۵: ایدی سازنده (جدید - دو خطی)
 -- ================================================
-createToggle(scrollFrame, "💥 Fling (پرتاب به بالا)",
+local creditFrame = Instance.new("Frame")
+creditFrame.Size = UDim2.new(0.92, 0, 0, 50)
+creditFrame.BackgroundTransparency = 1
+creditFrame.BorderSizePixel = 0
+creditFrame.Parent = scrollFrame
+
+local creditLabel1 = Instance.new("TextLabel")
+creditLabel1.Size = UDim2.new(1, 0, 0.5, 0)
+creditLabel1.Position = UDim2.new(0, 0, 0, 0)
+creditLabel1.BackgroundTransparency = 1
+creditLabel1.Text = "آیدی سازنده اسکریپت در تلگرام : @fromiran_love"
+creditLabel1.TextColor3 = Color3.fromRGB(150, 150, 180)
+creditLabel1.TextSize = 12
+creditLabel1.Font = Enum.Font.GothamMedium
+creditLabel1.TextTransparency = 0.3
+creditLabel1.TextScaled = true
+creditLabel1.Parent = creditFrame
+
+local creditLabel2 = Instance.new("TextLabel")
+creditLabel2.Size = UDim2.new(1, 0, 0.5, 0)
+creditLabel2.Position = UDim2.new(0, 0, 0.5, 0)
+creditLabel2.BackgroundTransparency = 1
+creditLabel2.Text = "آیدی سازنده اسکریپت در روبیکا : @H033_EIN_0"
+creditLabel2.TextColor3 = Color3.fromRGB(150, 150, 180)
+creditLabel2.TextSize = 12
+creditLabel2.Font = Enum.Font.GothamMedium
+creditLabel2.TextTransparency = 0.3
+creditLabel2.TextScaled = true
+creditLabel2.Parent = creditFrame
+
+print("✅ بخش ۱۵: ایدی سازنده (جدید) اضافه شد!")
+-- ================================================
+-- 🇮🇷 بخش ۱۱: Fling + WalkFling (اصلاح‌شده)
+-- ================================================
+
+-- Fling
+local function startFling()
+    local char = player.Character
+    if not char then
+        return
+    end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then
+        return
+    end
+    
+    if selectedPlayer and selectedPlayer.Character then
+        local targetRoot = selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if targetRoot then
+            root.CFrame = CFrame.new(targetRoot.Position + Vector3.new(0, 2, 0))
+        end
+    end
+    
+    local bv = Instance.new("BodyVelocity")
+    bv.MaxForce = Vector3.new(4000, 4000, 4000)
+    bv.Velocity = Vector3.new(0, 80, 0)
+    bv.Parent = root
+    
+    if flingConnection then
+        flingConnection:Disconnect()
+    end
+    flingConnection = RunService.Heartbeat:Connect(function()
+        if not isFling then
+            stopFling()
+            return
+        end
+        if bv and bv.Parent then
+            bv.Velocity = Vector3.new(0, 80, 0)
+        end
+    end)
+end
+
+local function stopFling()
+    if flingConnection then
+        flingConnection:Disconnect()
+        flingConnection = nil
+    end
+    local char = player.Character
+    if char then
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if root then
+            for _, c in ipairs(root:GetChildren()) do
+                if c:IsA("BodyVelocity") then
+                    c:Destroy()
+                end
+            end
+        end
+    end
+end
+
+createToggle(scrollFrame, "💥 Fling (پرتاب)",
     function() return isFling end,
     function(state)
         isFling = state
-        if state then startFling() else stopFling() end
+        if state then
+            startFling()
+        else
+            stopFling()
+        end
     end
 )
+
+-- WalkFling
+local function startWalkFling()
+    local char = player.Character
+    if not char then
+        return
+    end
+    local hum = char:FindFirstChild("Humanoid")
+    if hum then
+        hum.WalkSpeed = 250
+    end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if root then
+        local bv = Instance.new("BodyVelocity")
+        bv.MaxForce = Vector3.new(4000, 4000, 4000)
+        bv.Velocity = root.CFrame.LookVector * 100
+        bv.Parent = root
+        root:SetAttribute("WalkFlingBV", bv)
+    end
+end
+
+local function stopWalkFling()
+    local char = player.Character
+    if char then
+        local hum = char:FindFirstChild("Humanoid")
+        if hum then
+            hum.WalkSpeed = walkSpeedValue
+        end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if root then
+            local bv = root:FindFirstChild("BodyVelocity")
+            if bv then
+                bv:Destroy()
+            end
+            root:SetAttribute("WalkFlingBV", nil)
+        end
+    end
+end
 
 createToggle(scrollFrame, "🌀 WalkFling (پرتاب با راه رفتن)",
     function() return isWalkFling end,
     function(state)
         isWalkFling = state
-        if state then startWalkFling() else stopWalkFling() end
+        if state then
+            startWalkFling()
+        else
+            stopWalkFling()
+        end
     end
 )
 
-print("✅ بخش ۱۰: Fling و WalkFling اضافه شدند!")
-
--- ================================================
--- 🇮🇷 بخش ۱۵: ایدی سازنده (کم‌رنگ)
--- ================================================
-local creditFrame = Instance.new("Frame")
-creditFrame.Size = UDim2.new(0.92, 0, 0, 30)
-creditFrame.BackgroundTransparency = 1
-creditFrame.BorderSizePixel = 0
-creditFrame.Parent = scrollFrame
-
-local creditLabel = Instance.new("TextLabel")
-creditLabel.Size = UDim2.new(1, 0, 1, 0)
-creditLabel.BackgroundTransparency = 1
-creditLabel.Text = "@fromiran_love"
-creditLabel.TextColor3 = Color3.fromRGB(150, 150, 180)
-creditLabel.TextSize = 14
-creditLabel.Font = Enum.Font.GothamMedium
-creditLabel.TextTransparency = 0.3  -- کم‌رنگ
-creditLabel.TextScaled = false
-creditLabel.Parent = creditFrame
-
-print("✅ بخش ۱۵: ایدی سازنده اضافه شد!")
-
--- ================================================
--- ================================================
--- 🇮🇷 بخش ۱۱: دکمه کوچک‌سازی در گوشه (نسخه اصلاح‌شده برای گوشی)
--- ================================================
-local minimizedButton = Instance.new("TextButton")
-minimizedButton.Size = UDim2.new(0, 55, 0, 55)
-minimizedButton.Position = UDim2.new(1, -70, 0, 10)
-minimizedButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-minimizedButton.BackgroundTransparency = 0.2
-minimizedButton.BorderSizePixel = 0
-minimizedButton.Text = "🇮🇷"
-minimizedButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-minimizedButton.TextSize = 28
-minimizedButton.Font = Enum.Font.GothamBold
-minimizedButton.Visible = false
-minimizedButton.Parent = screenGui
-
-local minCorner = Instance.new("UICorner")
-minCorner.CornerRadius = UDim.new(1, 0)
-minCorner.Parent = minimizedButton
-
--- مدیریت کوچک‌سازی (با کلیک و لمس)
-minimizeBtn.MouseButton1Click:Connect(function()
-    isMinimized = not isMinimized
-    mainFrame.Visible = not isMinimized
-    minimizedButton.Visible = isMinimized
-end)
-
-minimizeBtn.TouchTap:Connect(function()
-    isMinimized = not isMinimized
-    mainFrame.Visible = not isMinimized
-    minimizedButton.Visible = isMinimized
-end)
-
-minimizedButton.MouseButton1Click:Connect(function()
-    isMinimized = false
-    mainFrame.Visible = true
-    minimizedButton.Visible = false
-end)
-
-minimizedButton.TouchTap:Connect(function()
-    isMinimized = false
-    mainFrame.Visible = true
-    minimizedButton.Visible = false
-end)
-
-closeBtn.MouseButton1Click:Connect(function()
-    screenGui:Destroy()
-    print("🇮🇷 منوی ایرانی بسته شد!")
-end)
-
-closeBtn.TouchTap:Connect(function()
-    screenGui:Destroy()
-    print("🇮🇷 منوی ایرانی بسته شد!")
-end)
-
-print("✅ بخش ۱۱: مدیریت کوچک‌سازی و بستن (اصلاح‌شده برای گوشی) اضافه شد!")
-
+print("✅ بخش ۱۱: Fling و WalkFling (اصلاح‌شده) اضافه شدند!")
 -- 🇮🇷 بخش ۱۲: درگ کردن منو (نسخه اصلاح‌شده)
 -- ================================================
 local dragging = false
@@ -643,27 +1087,43 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 
 print("✅ بخش ۱۲: درگ کردن منو (اصلاح‌شده) اضافه شد!")
--- 🇮🇷 بخش ۱۳: توابع اصلی (Order، KillFarm، Fly، Noclip، Fling، WalkFling)
+-- ================================================
+-- 🇮🇷 بخش ۱۳: توابع اصلی (با Order اصلاح‌شده)
 -- ================================================
 
 -- ⚠️ توابع startAttach و stopAttach در بخش ۵ تعریف شدن.
 -- اینجا فقط توابع دیگه رو تعریف می‌کنیم.
 
--- 2️⃣ Order (چرخش دور بازیکن)
+-- 2️⃣ Order (چرخش دور بازیکن) - اصلاح‌شده
 local function startOrder()
-    if orderConnection then orderConnection:Disconnect() end
+    if orderConnection then
+        orderConnection:Disconnect()
+    end
     local angle = 0
     orderConnection = RunService.Heartbeat:Connect(function()
-        if not isOrder then return end
-        if not selectedPlayer or not selectedPlayer.Character then return end
+        if not isOrder then
+            return
+        end
+        if not selectedPlayer or not selectedPlayer.Character then
+            return
+        end
         local char = player.Character
-        if not char then return end
+        if not char then
+            return
+        end
         local root = char:FindFirstChild("HumanoidRootPart")
         local targetRoot = selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not root or not targetRoot then return end
-        angle = angle + 0.05
+        if not root or not targetRoot then
+            return
+        end
+        
+        -- چرخش سریع‌تر و روان‌تر
+        angle = angle + 0.08
         local radius = orderDistance
-        root.CFrame = CFrame.new(targetRoot.Position + Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius))
+        local x = math.cos(angle) * radius
+        local z = math.sin(angle) * radius
+        local targetPos = targetRoot.Position + Vector3.new(x, 0, z)
+        root.CFrame = CFrame.new(targetPos)
     end)
 end
 
@@ -676,16 +1136,26 @@ end
 
 -- 3️⃣ Kill Farm
 local function startKillFarm()
-    if killFarmConnection then killFarmConnection:Disconnect() end
+    if killFarmConnection then
+        killFarmConnection:Disconnect()
+    end
     local angle = 0
     killFarmConnection = RunService.Heartbeat:Connect(function()
-        if not isKillFarm then return end
-        if not selectedPlayer or not selectedPlayer.Character then return end
+        if not isKillFarm then
+            return
+        end
+        if not selectedPlayer or not selectedPlayer.Character then
+            return
+        end
         local char = player.Character
-        if not char then return end
+        if not char then
+            return
+        end
         local root = char:FindFirstChild("HumanoidRootPart")
         local targetRoot = selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not root or not targetRoot then return end
+        if not root or not targetRoot then
+            return
+        end
         angle = angle + 0.2
         root.CFrame = CFrame.new(targetRoot.Position + Vector3.new(math.cos(angle) * 3, 1, math.sin(angle) * 3))
     end)
@@ -701,9 +1171,13 @@ end
 -- 4️⃣ Fly (پرواز)
 local function startFly()
     local char = player.Character
-    if not char then return end
+    if not char then
+        return
+    end
     local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
+    if not root then
+        return
+    end
 
     local bv = Instance.new("BodyVelocity")
     bv.MaxForce = Vector3.new(4000, 4000, 4000)
@@ -713,7 +1187,9 @@ local function startFly()
     bg.MaxTorque = Vector3.new(4000, 4000, 4000)
     bg.Parent = root
 
-    if flyConnection then flyConnection:Disconnect() end
+    if flyConnection then
+        flyConnection:Disconnect()
+    end
     flyConnection = RunService.Heartbeat:Connect(function()
         if not isFly then
             stopFly()
@@ -721,16 +1197,22 @@ local function startFly()
         end
 
         local cam = workspace.CurrentCamera
-        if not cam then return end
+        if not cam then
+            return
+        end
 
         local f = cam.CFrame.LookVector * Vector3.new(1, 0, 1)
         if f.Magnitude > 0 then
             f = f.Unit
+        else
+            f = Vector3.new(0, 0, 1)
         end
 
         local r = cam.CFrame.RightVector * Vector3.new(1, 0, 1)
         if r.Magnitude > 0 then
             r = r.Unit
+        else
+            r = Vector3.new(1, 0, 0)
         end
 
         local m = Vector3.new(0, 0, 0)
@@ -740,7 +1222,11 @@ local function startFly()
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then m = m + r end
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then m = m + Vector3.new(0, 1, 0) end
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then m = m - Vector3.new(0, 1, 0) end
-        if m.Magnitude > 0 then m = m.Unit * 50 end
+        
+        local flySpeed = 50
+        if m.Magnitude > 0 then
+            m = m.Unit * flySpeed
+        end
 
         bv.Velocity = m
         bg.CFrame = cam.CFrame
@@ -768,7 +1254,9 @@ end
 
 -- 5️⃣ Noclip
 local function startNoclip()
-    if noclipConnection then noclipConnection:Disconnect() end
+    if noclipConnection then
+        noclipConnection:Disconnect()
+    end
     noclipConnection = RunService.Heartbeat:Connect(function()
         if not isNoclip then
             stopNoclip()
@@ -776,7 +1264,9 @@ local function startNoclip()
         end
 
         local char = player.Character
-        if not char then return end
+        if not char then
+            return
+        end
 
         for _, p in ipairs(char:GetDescendants()) do
             if p:IsA("BasePart") then
@@ -805,16 +1295,22 @@ end
 -- 6️⃣ Fling
 local function startFling()
     local char = player.Character
-    if not char then return end
+    if not char then
+        return
+    end
     local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
+    if not root then
+        return
+    end
 
     local bv = Instance.new("BodyVelocity")
     bv.MaxForce = Vector3.new(4000, 4000, 4000)
     bv.Velocity = Vector3.new(0, 50, 0)
     bv.Parent = root
 
-    if flingConnection then flingConnection:Disconnect() end
+    if flingConnection then
+        flingConnection:Disconnect()
+    end
     flingConnection = RunService.Heartbeat:Connect(function()
         if not isFling then
             stopFling()
@@ -867,9 +1363,7 @@ local function stopWalkFling()
     end
 end
 
-print("✅ بخش ۱۳: توابع اصلی بارگذاری شدند!")
-
--- ================================================
+print("✅ بخش ۱۳: توابع اصلی (با Order اصلاح‌شده) بارگذاری شدند!")
 -- 🇮🇷 بخش ۱۴: مدیریت Respawn و نوتیفیکیشن
 -- ================================================
 
@@ -975,3 +1469,50 @@ end
 checkScriptCompleteness()
 
 print("✅ بخش ۱۴: مدیریت Respawn و نوتیفیکیشن اضافه شد!")
+
+-- ================================================
+-- 🇮🇷 بخش ۱۶: Camlock Tool (قفل دوربین روی بازیکن)
+-- ================================================
+local isCamlock = false
+local camTarget = nil
+
+local function startCamlock()
+    if not selectedPlayer then
+        print("⚠️ اول از لیست بازیکن انتخاب کن!")
+        return
+    end
+    isCamlock = true
+    camTarget = selectedPlayer
+    print("🔒 Camlock روی " .. selectedPlayer.Name .. " فعال شد!")
+end
+
+local function stopCamlock()
+    isCamlock = false
+    camTarget = nil
+    print("🔓 Camlock غیرفعال شد!")
+end
+
+RunService.Heartbeat:Connect(function()
+    if isCamlock and camTarget and camTarget.Character then
+        local cam = workspace.CurrentCamera
+        if cam then
+            local targetRoot = camTarget.Character:FindFirstChild("HumanoidRootPart")
+            if targetRoot then
+                cam.CFrame = CFrame.lookAt(cam.CFrame.Position, targetRoot.Position)
+            end
+        end
+    end
+end)
+
+createToggle(scrollFrame, "🔒 Camlock (قفل دوربین روی بازیکن)",
+    function() return isCamlock end,
+    function(state)
+        if state then
+            startCamlock()
+        else
+            stopCamlock()
+        end
+    end
+)
+
+print("✅ بخش ۱۶: Camlock Tool اضافه شد!")
